@@ -183,7 +183,7 @@ check_eq "progress unchanged by viewing" "$PROGRESS_BEFORE" "$(curl -s -b "$JAR"
 
 echo "== sandbox =="
 PAGE=$(curl -s -b "$JAR" "$BASE/challenges/hello-fix")
-check_has "page has sandbox target" 'id="sandbox"' "$PAGE"
+check_has "page has sandbox controls target" 'id="sandbox-controls"' "$PAGE"
 check_has "page loads sandbox status" 'hx-get="/sandbox/status?challenge=hello-fix"' "$PAGE"
 check_eq "sandbox status 200" "200" "$(curl -s -b "$JAR" -o /dev/null -w '%{http_code}' "$BASE/sandbox/status?challenge=hello-fix")"
 check_has "sandbox status has content" "sandbox" "$(curl -s -b "$JAR" "$BASE/sandbox/status?challenge=hello-fix")"
