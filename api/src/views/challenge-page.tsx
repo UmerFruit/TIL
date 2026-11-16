@@ -54,6 +54,12 @@ export function ChallengePage({
                     </ul>
                 </>
             )}
+            <h3>Sandbox</h3>
+            <div
+                id="sandbox"
+                hx-get={`/sandbox/status?challenge=${challenge.id}`}
+                hx-trigger="load"
+            ></div>
             <form
                 hx-post={`/challenges/${challenge.id}/flag`}
                 hx-target="#flag-result"

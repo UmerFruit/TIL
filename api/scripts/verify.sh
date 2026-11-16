@@ -181,6 +181,13 @@ PROGRESS_BEFORE=$(curl -s -b "$JAR" "$BASE/api/progress")
 curl -s -b "$JAR" -o /dev/null "$BASE/challenges/hello-fix/answer"
 check_eq "progress unchanged by viewing" "$PROGRESS_BEFORE" "$(curl -s -b "$JAR" "$BASE/api/progress")"
 
+echo "== sandbox =="
+PAGE=$(curl -s -b "$JAR" "$BASE/challenges/hello-fix")
+check_has "page has sandbox target" 'id="sandbox"' "$PAGE"
+check_has "page loads sandbox status" 'hx-get="/sandbox/status?challenge=hello-fix"' "$PAGE"
+check_eq "sandbox status 200" "200" "$(curl -s -b "$JAR" -o /dev/null -w '%{http_code}' "$BASE/sandbox/status?challenge=hello-fix")"
+check_has "sandbox status has content" "sandbox" "$(curl -s -b "$JAR" "$BASE/sandbox/status?challenge=hello-fix")"
+
 echo "== orphan progress row tolerated =="
 node -e "const D=require('better-sqlite3');const db=new D(process.argv[1]);db.prepare('insert or ignore into progress (challenge_id,points,solved_at) values (?,?,?)').run('ghost',99,new Date().toISOString());db.close();" "$DB"
 check_has "orphan: still 3 / 3" "Points: 3 / 3" "$(curl -s -b "$JAR" "$BASE/")"

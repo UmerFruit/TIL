@@ -4,9 +4,11 @@ import { openDb } from "./db.js";
 import { loadConfig } from "./config.js";
 import { DiskContentAdapter } from "./adapters/content.js";
 import { SqliteProgressAdapter } from "./adapters/progress.js";
+import { DockerSandboxRuntime } from "./adapters/sandbox.js";
 import { ChallengesService } from "./services/challenges.js";
 import { FlagsService } from "./services/flags.js";
 import { AuthService } from "./services/auth.js";
+import { SandboxService } from "./services/sandbox.js";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -25,8 +27,15 @@ const progress = new SqliteProgressAdapter(db);
 const service = new ChallengesService(content, progress);
 const flags = new FlagsService(content, progress);
 const auth = new AuthService(config.appPassword);
+const sandboxRuntime = new DockerSandboxRuntime({
+    socketPath: config.dockerSocket,
+    memoryMb: config.sandboxMemoryMb,
+    cpus: config.sandboxCpus,
+    pids: config.sandboxPids,
+});
+const sandbox = new SandboxService(content, sandboxRuntime);
 
-const app = createApp({ db, service, flags, auth, config });
+const app = createApp({ db, service, flags, auth, sandbox, config });
 
 const port = Number(process.env.PORT) || 3000;
 serve({ fetch: app.fetch, port }, (info) => {

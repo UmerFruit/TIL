@@ -33,14 +33,29 @@ export type ChallengeResult = Challenge | BrokenItem;
 export interface FoundChallenge {
     challenge: Challenge;
     body: string;
+    dir: string;
 }
 
 export type FindChallengeResult = FoundChallenge | BrokenItem | null;
+
+export interface SandboxFile {
+    path: string;
+    content: Buffer;
+    mode: number;
+}
+
+export interface SandboxContent {
+    image: string;
+    files: SandboxFile[];
+}
+
+export type SandboxContentResult = SandboxContent | BrokenItem | null;
 
 export interface ContentAdapter {
     readModules(): ModuleResult[];
     readChallenges(moduleId: string): ChallengeResult[];
     findChallenge(id: string): FindChallengeResult;
+    readSandboxFiles(id: string): SandboxContentResult;
 }
 
 const ModuleSchema = z.object({
@@ -110,6 +125,28 @@ function isFile(path: string): boolean {
         return statSync(path).isFile();
     } catch {
         return false;
+    }
+}
+
+function isDirectory(path: string): boolean {
+    try {
+        return statSync(path).isDirectory();
+    } catch {
+        return false;
+    }
+}
+
+// Symlinks are skipped (Dirent.isFile/isDirectory are false for them), so a
+// link cannot escape the challenge folder.
+function collectSandboxFiles(root: string, rel: string, out: SandboxFile[]): void {
+    const dir = rel === "" ? root : join(root, rel);
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+        const relPath = rel === "" ? entry.name : `${rel}/${entry.name}`;
+        if (entry.isDirectory()) {
+            collectSandboxFiles(root, relPath, out);
+        } else if (entry.isFile()) {
+            out.push({ path: `files/${relPath}`, content: readFileSync(join(root, relPath)), mode: 0o644 });
+        }
     }
 }
 
@@ -249,7 +286,7 @@ export class DiskContentAdapter implements ContentAdapter {
                     if (validation) {
                         return validation;
                     }
-                    return { challenge, body };
+                    return { challenge, body, dir: join(moduleDir, id) };
                 } catch (err) {
                     return {
                         broken: true,
@@ -260,5 +297,27 @@ export class DiskContentAdapter implements ContentAdapter {
             }
         }
         return null;
+    }
+
+    readSandboxFiles(id: string): SandboxContentResult {
+        const found = this.findChallenge(id);
+        if (found === null) {
+            return null;
+        }
+        if ("broken" in found) {
+            return found;
+        }
+        const checkPath = join(found.dir, "check");
+        if (!isFile(checkPath)) {
+            return { broken: true, path: checkPath, error: "missing check script" };
+        }
+        const files: SandboxFile[] = [
+            { path: "check", content: readFileSync(checkPath), mode: 0o755 },
+        ];
+        const filesDir = join(found.dir, "files");
+        if (isDirectory(filesDir)) {
+            collectSandboxFiles(filesDir, "", files);
+        }
+        return { image: found.challenge.image, files };
     }
 }

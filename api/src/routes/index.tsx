@@ -8,6 +8,7 @@ import type { Config } from "../config.js";
 import { AuthService } from "../services/auth.js";
 import { ChallengesService } from "../services/challenges.js";
 import { FlagsService } from "../services/flags.js";
+import { SandboxService } from "../services/sandbox.js";
 import { clearSession, hasSession, setSession } from "../session.js";
 import { Layout } from "../views/layout.js";
 import { ModuleList } from "../views/module-list.js";
@@ -15,6 +16,7 @@ import { ChallengePage, NotFound } from "../views/challenge-page.js";
 import { FlagResult } from "../views/flag-result.js";
 import { Answer } from "../views/answer.js";
 import { Login } from "../views/login.js";
+import { Sandbox } from "../views/sandbox.js";
 
 const publicDir = resolve(dirname(fileURLToPath(import.meta.url)), "../../public");
 
@@ -31,6 +33,7 @@ export function createApp(opts: {
     service: ChallengesService;
     flags: FlagsService;
     auth: AuthService;
+    sandbox: SandboxService;
     config: Config;
 }) {
     const app = new Hono();
@@ -119,6 +122,24 @@ export function createApp(opts: {
     app.get("/challenges/:id/answer", (c) => {
         const outcome = opts.service.getGuide(c.req.param("id"));
         return c.html(<Answer outcome={outcome} />);
+    });
+
+    app.post("/sandbox/start", async (c) => {
+        const body = await c.req.parseBody();
+        const challengeId = typeof body.challenge === "string" ? body.challenge : "";
+        const result = await opts.sandbox.start(challengeId);
+        return c.html(<Sandbox result={result} challengeId={challengeId} />);
+    });
+
+    app.post("/sandbox/stop", async (c) => {
+        const result = await opts.sandbox.stop();
+        return c.html(<Sandbox result={result} challengeId="" />);
+    });
+
+    app.get("/sandbox/status", async (c) => {
+        const challengeId = c.req.query("challenge") ?? "";
+        const result = await opts.sandbox.status(challengeId);
+        return c.html(<Sandbox result={result} challengeId={challengeId} />);
     });
 
     return app;
