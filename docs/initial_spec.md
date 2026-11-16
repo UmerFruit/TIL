@@ -7,12 +7,11 @@ Points by tier (1/2/3). Flag format `TIL{...}`, static, printed by the container
 ## Containers (all on the Caddy Docker network, no published ports)
 | Container | Role |
 |---|---|
-| web | Static React SPA (Vite build), xterm.js terminal |
-| api | Hono (TS) JSON API + WebSocket terminal bridge, SQLite file |
-| content | Git checkout, bind-mounted into api (dev mode: live edits, no restart) |
+| app | One Hono (TS) app: server-rendered Hono JSX pages, HTMX fragments, WebSocket terminal bridge, SQLite file. htmx and xterm.js are vendored, pinned static files. No SPA, no frontend build step. |
+| content | Git checkout, mounted into app (dev: live edits, no restart) |
 
-Caddy routes `learning.umerfruit.duckdns.org`: `/` to web, `/api` and `/ws` to api.
-Frontend only talks to the API (JSON). It never knows how the backend works, so it can be swapped.
+Production: Caddy reverse-proxies `learning.umerfruit.duckdns.org` (including `/ws`) to the single app container.
+Dev is not dockerized: the app runs on the host (`npm run dev`); Docker is used only for sandbox session containers.
 
 ## Backend layers
 1. Routes (HTTP/WS only, no logic)
@@ -20,12 +19,13 @@ Frontend only talks to the API (JSON). It never knows how the backend works, so 
 3. Adapters: content-from-disk, SQLite, sandbox-runtime (Docker API)
 Services never import from routes. Adapters sit behind interfaces so they can be replaced.
 
-## API surface (v1)
-- GET challenges (list by module), GET challenge (briefing, links, tier)
-- POST sandbox start / reset / stop, GET sandbox status
-- WS terminal (attach to the running sandbox)
-- POST flag submit, GET progress, GET answer (guide)
+## Routes (v1)
+Pages and HTMX fragments (HTML), not a JSON API. `docs/ROUTES.md` holds the full list; `GET /api/progress` remains as a JSON debug endpoint.
+- Pages: module list, challenge page (briefing, links, tier; never the flag)
+- Fragments: sandbox start / reset / stop / status, flag submit result, view answer (guide)
+- WS `/ws`: terminal (attach to the running sandbox)
 - POST content sync (git pull)
+- Login / logout
 
 ## Sandbox design
 Problem: the api must create containers, but mounting the host Docker socket is root on the VPS.
@@ -43,8 +43,10 @@ Limits per session: ~1 GB RAM, 1 CPU, PID limit, disk quota, wall-clock cap. Inb
 Flag flow: the challenge's check command prints `TIL{...}` when the fix is correct. The learner pastes it, the api compares it with the metadata flag, and points are awarded once.
 
 ## Challenge format
-Folder per challenge: `challenge.md` (YAML header: id, title, module, tier, flag, image, links[]), body = briefing + guide, plus broken files.
-Links: optional docs/videos with label.
+Folder per challenge: `challenge.md` (YAML header: id, title, module, tier 1-3, flag, image, order, links[]), body = briefing, then a `## Guide` section shown only by "view answer"; plus `files/` and a `check` script.
+Links: optional, `type` doc|video, `url`, `label`.
+Module: folder with `module.md` (id, title, description, order).
+The flag is never sent to the browser in list or detail pages. Invalid content is reported on the page and never crashes the app.
 
 ## Risks / spike first
 1. **Rootless-in-rootless DinD** (inner daemon inside a rootless outer daemon) is fiddly: needs user namespaces, and a storage driver such as fuse-overlayfs or vfs. Spike this before anything else, on the ARM VPS. If it fails, fallback: Sysbox runtime, or a single shared inner daemon.
@@ -62,7 +64,7 @@ Links: optional docs/videos with label.
 - One shared workspace image. Pinned images are pre-pulled for fast starts.
 - One session at a time: opening another challenge stops the current session.
 - Auth: single password from an env var, session cookie.
-- Module map: plain list per module first (roadmap-style visual later; frontend-only change).
+- Module map: plain list per module first (roadmap-style visual later; a view-only change).
 - Progress stored: solved status, points, timestamp. Reset and "view answer" do not change it.
 - Content sync: dev mode bind-mounts the content folder; "Sync" button runs `git pull`.
 - Challenge validation (testing that a challenge works): open, decide after module 1 is designed.
