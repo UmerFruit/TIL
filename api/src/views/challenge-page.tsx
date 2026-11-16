@@ -30,6 +30,9 @@ export function ChallengePage({
                 <a href="/">← Modules</a>
             </p>
             <h1>{challenge.title}</h1>
+            {challenge.solved && (
+                <div class="solved">✓ Solved (+{challenge.points} pts)</div>
+            )}
             <div class="tier">Tier {challenge.tier}</div>
             <div class="briefing"><Markdown source={challenge.briefing} /></div>
             {challenge.links.length > 0 && (

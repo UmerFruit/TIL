@@ -108,3 +108,17 @@ tier,
     background: #fef2f2;
     border: 1px solid #fecaca;
 }
+
+.points {
+    font-size: 0.875rem;
+    font-weight: 400;
+    color: #6b7280;
+}
+.solved {
+    color: #166534;
+    font-weight: 600;
+}
+.unsolved {
+    color: #9ca3af;
+    font-size: 0.875rem;
+}

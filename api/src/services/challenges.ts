@@ -4,6 +4,7 @@ import type {
     FoundChallenge,
     ModuleResult,
 } from "../adapters/content.js";
+import type { ProgressAdapter } from "../adapters/progress.js";
 
 export type { BrokenItem };
 
@@ -12,6 +13,7 @@ export interface ListChallenge {
     title: string;
     tier: number;
     order: number;
+    solved: boolean;
 }
 
 export interface ListModule {
@@ -20,11 +22,15 @@ export interface ListModule {
     description: string;
     order: number;
     challenges: ListChallenge[];
+    earnedPoints: number;
+    totalPoints: number;
 }
 
 export interface ListResult {
     modules: ListModule[];
     broken: BrokenItem[];
+    earnedPoints: number;
+    totalPoints: number;
 }
 
 export interface ChallengeModule {
@@ -39,6 +45,8 @@ export interface ChallengeDTO {
     tier: number;
     briefing: string;
     links: { type: "doc" | "video"; url: string; label: string }[];
+    solved: boolean;
+    points: number;
 }
 
 export type ChallengeOutcome =
@@ -47,12 +55,22 @@ export type ChallengeOutcome =
     | { kind: "notFound" };
 
 export class ChallengesService {
-    constructor(private content: ContentAdapter) {}
+    constructor(
+        private content: ContentAdapter,
+        private progress: ProgressAdapter
+    ) {}
 
     list(): ListResult {
         const modules: ListModule[] = [];
         const broken: BrokenItem[] = [];
         const duplicateIds = this.duplicateIds();
+        // One query for all progress; orphan rows simply never match a valid
+        // challenge below, so they are ignored.
+        const solvedPoints = new Map(
+            this.progress.listSolved().map((row) => [row.challengeId, row.points])
+        );
+        let earnedPoints = 0;
+        let totalPoints = 0;
 
         for (const result of this.content.readModules()) {
             if ("broken" in result) {
@@ -61,6 +79,8 @@ export class ChallengesService {
             }
             const challengeResults = this.content.readChallenges(result.id);
             const challenges: ListChallenge[] = [];
+            let moduleEarned = 0;
+            let moduleTotal = 0;
             for (const cr of challengeResults) {
                 if ("broken" in cr) {
                     broken.push(cr);
@@ -74,25 +94,35 @@ export class ChallengesService {
                     });
                     continue;
                 }
+                const solved = solvedPoints.has(cr.id);
+                if (solved) {
+                    moduleEarned += solvedPoints.get(cr.id) ?? 0;
+                }
+                moduleTotal += cr.tier;
                 challenges.push({
                     id: cr.id,
                     title: cr.title,
                     tier: cr.tier,
                     order: cr.order,
+                    solved,
                 });
             }
             challenges.sort((a, b) => a.order - b.order);
+            earnedPoints += moduleEarned;
+            totalPoints += moduleTotal;
             modules.push({
                 id: result.id,
                 title: result.title,
                 description: result.description,
                 order: result.order,
                 challenges,
+                earnedPoints: moduleEarned,
+                totalPoints: moduleTotal,
             });
         }
 
         modules.sort((a, b) => a.order - b.order);
-        return { modules, broken };
+        return { modules, broken, earnedPoints, totalPoints };
     }
 
     getChallenge(id: string): ChallengeOutcome {
@@ -117,6 +147,7 @@ export class ChallengesService {
 
         const { challenge, body } = found;
         const briefing = splitBriefing(body);
+        const solvedRow = this.progress.listSolved().find((row) => row.challengeId === id);
 
         let moduleTitle = challenge.module;
         for (const result of this.content.readModules()) {
@@ -135,6 +166,8 @@ export class ChallengesService {
                 tier: challenge.tier,
                 briefing,
                 links: challenge.links ?? [],
+                solved: solvedRow !== undefined,
+                points: solvedRow?.points ?? 0,
             },
         };
     }

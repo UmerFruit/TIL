@@ -26,8 +26,17 @@ export function createApp(opts: {
     });
 
     app.get("/", (c) => {
-        const { modules, broken } = opts.service.list();
-        return c.html(<Layout><ModuleList modules={modules} broken={broken} /></Layout>);
+        const { modules, broken, earnedPoints, totalPoints } = opts.service.list();
+        return c.html(
+            <Layout>
+                <ModuleList
+                    modules={modules}
+                    broken={broken}
+                    earnedPoints={earnedPoints}
+                    totalPoints={totalPoints}
+                />
+            </Layout>
+        );
     });
 
     app.get("/challenges/:id", (c) => {

@@ -3,7 +3,11 @@ import type { SubmitResult } from "../services/flags.js";
 export function FlagResult({ result }: { result: SubmitResult }) {
     switch (result.kind) {
         case "correct":
-            return <div class="result-ok">Correct! +{result.points} points</div>;
+            return (
+                <div class="result-ok">
+                    Correct! +{result.points} {result.points === 1 ? "point" : "points"}
+                </div>
+            );
         case "alreadySolved":
             return <div class="result-ok">Already solved, no points awarded again</div>;
         case "wrong":

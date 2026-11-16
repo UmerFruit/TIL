@@ -11,8 +11,8 @@ import { fileURLToPath } from "node:url";
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const db = openDb();
 const content = new DiskContentAdapter(process.env.CONTENT_DIR || resolve(root, "content"));
-const service = new ChallengesService(content);
 const progress = new SqliteProgressAdapter(db);
+const service = new ChallengesService(content, progress);
 const flags = new FlagsService(content, progress);
 
 const app = createApp({ db, service, flags });
