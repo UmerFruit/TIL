@@ -1,0 +1,5 @@
+#!/bin/sh
+cd "$(dirname "$0")" || exit 1
+g++ -o /tmp/hello files/main.cpp || { echo "Compile failed."; exit 1; }
+[ "$(/tmp/hello)" = "Hello, TIL!" ] || { echo "Wrong output."; exit 1; }
+echo "TIL{h3llo_c0mpiler}"

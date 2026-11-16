@@ -1,0 +1,5 @@
+#!/bin/sh
+cd "$(dirname "$0")" || exit 1
+g++ -o /tmp/sum files/sum.cpp || { echo "Compile failed."; exit 1; }
+[ "$(/tmp/sum)" = "55" ] || { echo "Wrong output."; exit 1; }
+echo "TIL{sum_1_to_10}"
