@@ -15,6 +15,12 @@ app.get('/api/challenges', (c) => {
     return c.json(challenges);
 })
 
+app.get('/api/progress', (c) => {
+    const progress = db.prepare("select * from progress").all()
+    return c.json(progress);
+})
+
+
 serve({
   fetch: app.fetch,
   port: 3000
