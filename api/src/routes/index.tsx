@@ -38,10 +38,13 @@ export function createApp(opts: {
 }) {
     const app = new Hono();
 
-    // Everything except the login page and static assets requires a session.
+    // Health check (before auth middleware)
+    app.get("/health", (c) => c.text("ok"));
+
+    // Everything except the login page, static assets, and health requires a session.
     app.use("*", async (c, next) => {
         const path = c.req.path;
-        if (path === "/login" || path.startsWith("/static/")) {
+        if (path === "/login" || path.startsWith("/static/") || path === "/health") {
             return next();
         }
         if (await hasSession(c, opts.config.sessionSecret)) {

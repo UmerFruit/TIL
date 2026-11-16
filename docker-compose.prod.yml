@@ -1,0 +1,40 @@
+# Production docker-compose for TIL
+# Run with: docker compose -f docker-compose.prod.yml --env-file .env up -d
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        # Pass the host docker group GID so the container user can access the socket
+        # On most systems this is 999, but check with: getent group docker
+        DOCKER_GID: ${DOCKER_GID:-999}
+    env_file:
+      - .env
+    volumes:
+      # Content checkout (read-only, managed externally via git pull)
+      - ${CONTENT_DIR:-./content}:/app/content:ro
+      # SQLite database persistence
+      - til-data:/app/data
+      # Docker socket for sandbox container management
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      - caddy
+    # No published ports - Caddy reverse proxies via the caddy network
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      start_period: 10s
+      retries: 3
+    restart: unless-stopped
+    # Run as non-root user (defined in Dockerfile)
+    # The user is in the docker group (GID from DOCKER_GID) to access the socket
+
+networks:
+  caddy:
+    external: true
+
+volumes:
+  til-data:
