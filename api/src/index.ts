@@ -1,29 +1,17 @@
-import { serve } from '@hono/node-server'
-import { Hono } from 'hono'
-import Database from "better-sqlite3"
+import { serve } from "@hono/node-server";
+import { Hono } from "hono";
+import { openDb } from "./db.js";
 
-const app = new Hono()
+const app = new Hono();
+const db = openDb();
 
-const db = new Database("../database/til.db")
+app.get("/", (c) => c.text("TIL"));
 
-app.get('/', (c) => {
-  return c.text('Hello Hono!')
-})
+app.get("/api/progress", (c) => {
+    return c.json(db.prepare("select * from progress").all());
+});
 
-app.get('/api/challenges', (c) => {
-    const challenges = db.prepare("select * from challenges").all()
-    return c.json(challenges);
-})
-
-app.get('/api/progress', (c) => {
-    const progress = db.prepare("select * from progress").all()
-    return c.json(progress);
-})
-
-
-serve({
-  fetch: app.fetch,
-  port: 3000
-}, (info) => {
-  console.log(`Server is running on http://localhost:${info.port}`)
-})
+const port = Number(process.env.PORT) || 3000;
+serve({ fetch: app.fetch, port }, (info) => {
+    console.log(`Server is running on http://localhost:${info.port}`);
+});
