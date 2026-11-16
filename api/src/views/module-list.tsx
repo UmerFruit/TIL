@@ -16,7 +16,8 @@ export function ModuleList({ modules, broken }: { modules: ListModule[]; broken:
                     <ul>
                         {module.challenges.map((challenge) => (
                             <li>
-                                {challenge.title} (tier {challenge.tier}, order {challenge.order})
+                                <a href={`/challenges/${challenge.id}`}>{challenge.title}</a>
+                                (tier {challenge.tier}, order {challenge.order})
                             </li>
                         ))}
                     </ul>

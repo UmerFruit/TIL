@@ -56,3 +56,38 @@ li {
     font-size: 0.875rem;
     margin-bottom: 0.25rem;
 }
+
+a {
+    color: #2563eb;
+    text-decoration: underline;
+}
+
+tier,
+.tier {
+    display: inline-block;
+    background: #e5e7eb;
+    color: #374151;
+    font-size: 0.875rem;
+    font-weight: 600;
+    padding: 0.125rem 0.5rem;
+    border-radius: 0.25rem;
+    margin-bottom: 1rem;
+}
+
+.briefing {
+    margin: 1rem 0;
+}
+
+.briefing code {
+    background: #f3f4f6;
+    padding: 0.125rem 0.25rem;
+    border-radius: 0.25rem;
+    font-family: ui-monospace, SFMono-Regular, monospace;
+    font-size: 0.875rem;
+}
+
+.link-type {
+    font-size: 0.75rem;
+    color: #6b7280;
+    font-family: ui-monospace, SFMono-Regular, monospace;
+}
