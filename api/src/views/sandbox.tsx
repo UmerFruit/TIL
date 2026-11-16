@@ -32,6 +32,7 @@ function SandboxControls({ status, challengeId }: { status: SandboxStatus; chall
                     <input type="hidden" name="challenge" value={challengeId} />
                     <button type="submit">Reset</button>
                 </form>
+                <div data-terminal class="terminal"></div>
             </div>
         );
     }

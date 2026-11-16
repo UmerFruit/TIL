@@ -18,6 +18,19 @@ export interface SandboxRuntime {
     createSession(opts: CreateSessionOptions): Promise<SessionInfo>;
     listSessions(): Promise<SessionInfo[]>;
     removeSession(id: string): Promise<void>;
+    execSession(id: string, opts: ExecOptions): Promise<ExecResult>;
+}
+
+export interface ExecOptions {
+    cmd: string[];
+    user?: string;
+    env?: string[];
+}
+
+export interface ExecResult {
+    socket: NodeJS.ReadableStream & NodeJS.WritableStream;
+    resize(cols: number, rows: number): Promise<void>;
+    close(): Promise<void>;
 }
 
 export type SandboxErrorKind = "dockerUnavailable" | "imageMissing" | "failed";
@@ -110,6 +123,41 @@ export class DockerSandboxRuntime implements SandboxRuntime {
             if (isNotFound(err)) {
                 return;
             }
+            throw this.wrap(err);
+        }
+    }
+
+    async execSession(id: string, opts: ExecOptions): Promise<ExecResult> {
+        try {
+            const container = this.docker.getContainer(id);
+            const exec = await container.exec({
+                Cmd: opts.cmd,
+                AttachStdin: true,
+                AttachStdout: true,
+                AttachStderr: true,
+                Tty: true,
+                User: opts.user ?? "learner",
+                WorkingDir: "/workspace",
+                Env: opts.env ?? ["TERM=xterm-256color"],
+            });
+            const stream = await exec.start({ hijack: true, stdin: true });
+            // dockerode returns a Duplex stream (Readable + Writable)
+            const duplex = stream as NodeJS.ReadableStream & NodeJS.WritableStream & { destroy?: (error?: Error) => void };
+            return {
+                socket: duplex,
+                resize: async (cols: number, rows: number) => {
+                    await exec.resize({ h: rows, w: cols });
+                },
+                close: async () => {
+                    // The exec process ends when the stream closes
+                    if (duplex.destroy) {
+                        duplex.destroy();
+                    } else {
+                        duplex.end();
+                    }
+                },
+            };
+        } catch (err) {
             throw this.wrap(err);
         }
     }

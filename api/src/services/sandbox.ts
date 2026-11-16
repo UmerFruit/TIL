@@ -106,6 +106,28 @@ export class SandboxService {
         }
     }
 
+    async exec(): Promise<{ kind: "ok"; exec: { socket: NodeJS.ReadableStream & NodeJS.WritableStream; resize: (cols: number, rows: number) => Promise<void>; close: () => Promise<void> } } | { kind: "noSession" } | { kind: "broken"; message: string }> {
+        try {
+            const sessions = await this.runtime.listSessions();
+            const session = sessions[0];
+            if (!session) {
+                return { kind: "noSession" };
+            }
+            const exec = await this.runtime.execSession(session.id, {
+                cmd: ["/bin/bash"],
+                user: "learner",
+                env: ["TERM=xterm-256color"],
+            });
+            this.touch();
+            return { kind: "ok", exec };
+        } catch (err) {
+            if (err instanceof SandboxError) {
+                return { kind: "broken", message: err.message };
+            }
+            return { kind: "broken", message: (err as Error)?.message ?? String(err) };
+        }
+    }
+
     touch(): void {
         this.lastActivity = Date.now();
     }

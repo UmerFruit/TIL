@@ -6,7 +6,11 @@ export function Layout({ children, authed = false }: { children: unknown; authed
                 <meta name="viewport" content="width=device-width, initial-scale=1" />
                 <title>TIL</title>
                 <link rel="stylesheet" href="/static/style.css" />
+                <link rel="stylesheet" href="/static/vendor/xterm.css" />
                 <script src="/static/htmx.min.js"></script>
+                <script src="/static/vendor/xterm.js"></script>
+                <script src="/static/vendor/addon-fit.js"></script>
+                <script src="/static/terminal.js"></script>
             </head>
             <body>
                 <header>
