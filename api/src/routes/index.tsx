@@ -9,6 +9,7 @@ import { Layout } from "../views/layout.js";
 import { ModuleList } from "../views/module-list.js";
 import { ChallengePage, NotFound } from "../views/challenge-page.js";
 import { FlagResult } from "../views/flag-result.js";
+import { Answer } from "../views/answer.js";
 
 const publicDir = resolve(dirname(fileURLToPath(import.meta.url)), "../../public");
 
@@ -60,6 +61,11 @@ export function createApp(opts: {
         const result = opts.flags.submit(c.req.param("id"), submitted);
         // Always 200: htmx does not swap 4xx responses.
         return c.html(<FlagResult result={result} />);
+    });
+
+    app.get("/challenges/:id/answer", (c) => {
+        const outcome = opts.service.getGuide(c.req.param("id"));
+        return c.html(<Answer outcome={outcome} />);
     });
 
     return app;

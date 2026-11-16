@@ -54,6 +54,12 @@ export type ChallengeOutcome =
     | { kind: "broken"; broken: BrokenItem }
     | { kind: "notFound" };
 
+export type GuideOutcome =
+    | { kind: "ok"; guide: string }
+    | { kind: "noGuide" }
+    | { kind: "broken" }
+    | { kind: "notFound" };
+
 export class ChallengesService {
     constructor(
         private content: ContentAdapter,
@@ -146,7 +152,7 @@ export class ChallengesService {
         }
 
         const { challenge, body } = found;
-        const briefing = splitBriefing(body);
+        const { briefing } = splitBody(body);
         const solvedRow = this.progress.listSolved().find((row) => row.challengeId === id);
 
         let moduleTitle = challenge.module;
@@ -172,6 +178,21 @@ export class ChallengesService {
         };
     }
 
+    getGuide(id: string): GuideOutcome {
+        if (this.duplicateIds().has(id)) {
+            return { kind: "broken" };
+        }
+        const found = this.content.findChallenge(id);
+        if (found === null) {
+            return { kind: "notFound" };
+        }
+        if ("broken" in found) {
+            return { kind: "broken" };
+        }
+        const { guide } = splitBody(found.body);
+        return guide === null ? { kind: "noGuide" } : { kind: "ok", guide };
+    }
+
     // Challenge ids that appear in more than one module. Both list() and
     // getChallenge() use this so they agree on what is broken.
     private duplicateIds(): Set<string> {
@@ -189,11 +210,14 @@ export class ChallengesService {
 
 const GUIDE_MARKER = "## Guide";
 
-function splitBriefing(body: string): string {
+function splitBody(body: string): { briefing: string; guide: string | null } {
     const lines = body.split("\n");
     const guideIndex = lines.findIndex((line) => line.trimEnd() === GUIDE_MARKER);
     if (guideIndex === -1) {
-        return body.trimEnd();
+        return { briefing: body.trimEnd(), guide: null };
     }
-    return lines.slice(0, guideIndex).join("\n").trimEnd();
+    return {
+        briefing: lines.slice(0, guideIndex).join("\n").trimEnd(),
+        guide: lines.slice(guideIndex + 1).join("\n").trim(),
+    };
 }

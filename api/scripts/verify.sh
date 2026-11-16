@@ -135,6 +135,21 @@ check_lacks "no flag on /" "h3llo_c0mpiler" "$(curl -s "$BASE/")"
 check_lacks "no flag on challenge page" "h3llo_c0mpiler" \
     "$(curl -s "$BASE/challenges/hello-fix")"
 
+echo "== view answer =="
+PAGE=$(curl -s "$BASE/challenges/hello-fix")
+check_lacks "page hides guide" "terminating" "$PAGE"
+check_has "page has answer target" 'id="answer"' "$PAGE"
+check_has "page has view answer button" 'hx-get="/challenges/hello-fix/answer"' "$PAGE"
+ANSWER=$(curl -s "$BASE/challenges/hello-fix/answer")
+check_has "answer renders guide" "terminating" "$ANSWER"
+check_has "answer wrapped in .answer" 'class="answer"' "$ANSWER"
+check_eq "answer status 200" "200" "$(curl -s -o /dev/null -w '%{http_code}' "$BASE/challenges/hello-fix/answer")"
+check_has "unknown id message" "This challenge can&#39;t be checked" "$(curl -s "$BASE/challenges/nope/answer")"
+check_eq "unknown id status 200" "200" "$(curl -s -o /dev/null -w '%{http_code}' "$BASE/challenges/nope/answer")"
+PROGRESS_BEFORE=$(curl -s "$BASE/api/progress")
+curl -s -o /dev/null "$BASE/challenges/hello-fix/answer"
+check_eq "progress unchanged by viewing" "$PROGRESS_BEFORE" "$(curl -s "$BASE/api/progress")"
+
 echo "== orphan progress row tolerated =="
 node -e "const D=require('better-sqlite3');const db=new D(process.argv[1]);db.prepare('insert or ignore into progress (challenge_id,points,solved_at) values (?,?,?)').run('ghost',99,new Date().toISOString());db.close();" "$DB"
 check_has "orphan: still 3 / 3" "Points: 3 / 3" "$(curl -s "$BASE/")"

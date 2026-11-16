@@ -70,6 +70,14 @@ export function ChallengePage({
                 <button type="submit">Submit flag</button>
             </form>
             <div id="flag-result"></div>
+            <button
+                hx-get={`/challenges/${challenge.id}/answer`}
+                hx-target="#answer"
+                hx-swap="innerHTML"
+            >
+                View answer
+            </button>
+            <div id="answer"></div>
         </>
     );
 }
