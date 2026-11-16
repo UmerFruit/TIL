@@ -1,4 +1,4 @@
-export function Layout({ children }: { children: unknown }) {
+export function Layout({ children, authed = false }: { children: unknown; authed?: boolean }) {
     return (
         <html lang="en">
             <head>
@@ -9,7 +9,14 @@ export function Layout({ children }: { children: unknown }) {
                 <script src="/static/htmx.min.js"></script>
             </head>
             <body>
-                <header><a href="/">TIL</a></header>
+                <header>
+                    <a href="/">TIL</a>
+                    {authed && (
+                        <form method="post" action="/logout" class="logout">
+                            <button type="submit">Log out</button>
+                        </form>
+                    )}
+                </header>
                 <nav><a href="/">Modules</a></nav>
                 <main id="content">{children}</main>
             </body>

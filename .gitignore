@@ -3,3 +3,6 @@ api/package-lock.json
 *.db
 data/
 .claude*
+.env
+.env.*
+!.env.example

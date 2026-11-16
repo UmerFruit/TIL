@@ -1,5 +1,5 @@
 #!/bin/sh
-# Runtime verification for the flag-submit + progress slices.
+# Runtime verification for the app slices.
 # Builds, starts the server on a throwaway DB, exercises the HTTP surface,
 # and reports pass/fail. Exits non-zero if any check fails.
 #
@@ -16,7 +16,10 @@ PORT="${PORT:-3997}"
 WORK=$(mktemp -d "${TMPDIR:-/tmp}/til-verify.XXXXXX") || exit 1
 DB="$WORK/til.db"
 LOG="$WORK/server.log"
+JAR="$WORK/cookies.txt"
 BASE="http://localhost:$PORT"
+PASSWORD="test-password"
+SECRET="0123456789abcdef0123456789abcdef"
 SERVER_PID=""
 
 PASS=0
@@ -37,11 +40,12 @@ stop_server() {
 }
 
 start_server() {
-    DB_PATH="$DB" PORT="$PORT" node dist/index.js >"$LOG" 2>&1 &
+    DB_PATH="$DB" PORT="$PORT" APP_PASSWORD="$PASSWORD" SESSION_SECRET="$SECRET" \
+        node dist/index.js >"$LOG" 2>&1 &
     SERVER_PID=$!
     i=0
     while [ "$i" -lt 50 ]; do
-        if curl -s -o /dev/null "$BASE/"; then
+        if curl -s -o /dev/null "$BASE/login"; then
             return 0
         fi
         sleep 0.2
@@ -98,70 +102,114 @@ if ! npm run build; then
     exit 1
 fi
 
+echo "== startup guard =="
+check_has "refuses without APP_PASSWORD" "APP_PASSWORD is required" \
+    "$(DB_PATH="$DB" PORT="$PORT" SESSION_SECRET="$SECRET" timeout 5 node dist/index.js 2>&1)"
+check_has "refuses short SESSION_SECRET" "SESSION_SECRET is required" \
+    "$(DB_PATH="$DB" PORT="$PORT" APP_PASSWORD="$PASSWORD" SESSION_SECRET=short timeout 5 node dist/index.js 2>&1)"
+
 start_server || exit 1
 
+echo "== auth =="
+check_eq "/ without cookie redirects" "302" \
+    "$(curl -s -o /dev/null -w '%{http_code}' "$BASE/")"
+check_has "/ redirects to /login" "/login" \
+    "$(curl -s -o /dev/null -w '%{redirect_url}' "$BASE/")"
+check_eq "flag POST without cookie (plain) redirects" "302" \
+    "$(curl -s -o /dev/null -w '%{http_code}' -X POST -d 'flag=TIL{x}' "$BASE/challenges/hello-fix/flag")"
+check_eq "flag POST without cookie (htmx) 401" "401" \
+    "$(curl -s -o /dev/null -w '%{http_code}' -H 'HX-Request: true' -X POST -d 'flag=TIL{x}' "$BASE/challenges/hello-fix/flag")"
+check_has "htmx 401 sets HX-Redirect" "/login" \
+    "$(curl -s -D - -o /dev/null -H 'HX-Request: true' -X POST -d 'flag=TIL{x}' "$BASE/challenges/hello-fix/flag")"
+check_has "wrong password error" "Wrong password" \
+    "$(curl -s -X POST -d 'password=nope' "$BASE/login")"
+check_eq "login redirects" "302" \
+    "$(curl -s -o /dev/null -w '%{http_code}' -c "$JAR" -X POST -d "password=$PASSWORD" "$BASE/login")"
+check_eq "logged in / is 200" "200" \
+    "$(curl -s -o /dev/null -w '%{http_code}' -b "$JAR" "$BASE/")"
+
 echo "== fresh state =="
-HOME_HTML=$(curl -s "$BASE/")
+HOME_HTML=$(curl -s -b "$JAR" "$BASE/")
 check_has "fresh: overall 0 / 3" "Points: 0 / 3" "$HOME_HTML"
 check_eq "fresh: no solved marks" "0" "$(count '✓ Solved' "$HOME_HTML")"
 
 echo "== flag submit =="
 check_has "wrong flag" "Wrong flag, try again" \
-    "$(curl -s -X POST -d 'flag=TIL{nope}' "$BASE/challenges/hello-fix/flag")"
+    "$(curl -s -b "$JAR" -X POST -d 'flag=TIL{nope}' "$BASE/challenges/hello-fix/flag")"
 check_has "hello correct +1 point" "Correct! +1 point" \
-    "$(curl -s -X POST -d 'flag=TIL{h3llo_c0mpiler}' "$BASE/challenges/hello-fix/flag")"
+    "$(curl -s -b "$JAR" -X POST -d 'flag=TIL{h3llo_c0mpiler}' "$BASE/challenges/hello-fix/flag")"
 check_has "hello resubmit already solved" "Already solved" \
-    "$(curl -s -X POST -d 'flag=TIL{h3llo_c0mpiler}' "$BASE/challenges/hello-fix/flag")"
+    "$(curl -s -b "$JAR" -X POST -d 'flag=TIL{h3llo_c0mpiler}' "$BASE/challenges/hello-fix/flag")"
 
-HOME_HTML=$(curl -s "$BASE/")
+HOME_HTML=$(curl -s -b "$JAR" "$BASE/")
 check_has "after hello: 1 / 3" "Points: 1 / 3" "$HOME_HTML"
 check_eq "after hello: one solved mark" "1" "$(count '✓ Solved' "$HOME_HTML")"
 check_has "hello page solved badge" "✓ Solved (+1 pts)" \
-    "$(curl -s "$BASE/challenges/hello-fix")"
+    "$(curl -s -b "$JAR" "$BASE/challenges/hello-fix")"
 
 check_has "sum correct +2 points" "Correct! +2 points" \
-    "$(curl -s -X POST -d 'flag=TIL{sum_1_to_10}' "$BASE/challenges/sum-fix/flag")"
-check_has "after sum: 3 / 3" "Points: 3 / 3" "$(curl -s "$BASE/")"
+    "$(curl -s -b "$JAR" -X POST -d 'flag=TIL{sum_1_to_10}' "$BASE/challenges/sum-fix/flag")"
+check_has "after sum: 3 / 3" "Points: 3 / 3" "$(curl -s -b "$JAR" "$BASE/")"
 
 echo "== progress api =="
-PROGRESS=$(curl -s "$BASE/api/progress")
+PROGRESS=$(curl -s -b "$JAR" "$BASE/api/progress")
 check_eq "two progress rows" "2" "$(count '"challenge_id"' "$PROGRESS")"
 check_has "hello points=1" '"challenge_id":"hello-fix","points":1' "$PROGRESS"
 check_has "sum points=2" '"challenge_id":"sum-fix","points":2' "$PROGRESS"
 check_has "solved_at is ISO" 'Z"' "$PROGRESS"
 
 echo "== flag never leaks =="
-check_lacks "no flag on /" "h3llo_c0mpiler" "$(curl -s "$BASE/")"
+check_lacks "no flag on /" "h3llo_c0mpiler" "$(curl -s -b "$JAR" "$BASE/")"
 check_lacks "no flag on challenge page" "h3llo_c0mpiler" \
-    "$(curl -s "$BASE/challenges/hello-fix")"
+    "$(curl -s -b "$JAR" "$BASE/challenges/hello-fix")"
 
 echo "== view answer =="
-PAGE=$(curl -s "$BASE/challenges/hello-fix")
+PAGE=$(curl -s -b "$JAR" "$BASE/challenges/hello-fix")
 check_lacks "page hides guide" "terminating" "$PAGE"
 check_has "page has answer target" 'id="answer"' "$PAGE"
 check_has "page has view answer button" 'hx-get="/challenges/hello-fix/answer"' "$PAGE"
-ANSWER=$(curl -s "$BASE/challenges/hello-fix/answer")
+ANSWER=$(curl -s -b "$JAR" "$BASE/challenges/hello-fix/answer")
 check_has "answer renders guide" "terminating" "$ANSWER"
 check_has "answer wrapped in .answer" 'class="answer"' "$ANSWER"
-check_eq "answer status 200" "200" "$(curl -s -o /dev/null -w '%{http_code}' "$BASE/challenges/hello-fix/answer")"
-check_has "unknown id message" "This challenge can&#39;t be checked" "$(curl -s "$BASE/challenges/nope/answer")"
-check_eq "unknown id status 200" "200" "$(curl -s -o /dev/null -w '%{http_code}' "$BASE/challenges/nope/answer")"
-PROGRESS_BEFORE=$(curl -s "$BASE/api/progress")
-curl -s -o /dev/null "$BASE/challenges/hello-fix/answer"
-check_eq "progress unchanged by viewing" "$PROGRESS_BEFORE" "$(curl -s "$BASE/api/progress")"
+check_eq "answer status 200" "200" \
+    "$(curl -s -b "$JAR" -o /dev/null -w '%{http_code}' "$BASE/challenges/hello-fix/answer")"
+check_has "unknown id message" "This challenge can&#39;t be checked" \
+    "$(curl -s -b "$JAR" "$BASE/challenges/nope/answer")"
+check_eq "unknown id status 200" "200" \
+    "$(curl -s -b "$JAR" -o /dev/null -w '%{http_code}' "$BASE/challenges/nope/answer")"
+PROGRESS_BEFORE=$(curl -s -b "$JAR" "$BASE/api/progress")
+curl -s -b "$JAR" -o /dev/null "$BASE/challenges/hello-fix/answer"
+check_eq "progress unchanged by viewing" "$PROGRESS_BEFORE" "$(curl -s -b "$JAR" "$BASE/api/progress")"
 
 echo "== orphan progress row tolerated =="
 node -e "const D=require('better-sqlite3');const db=new D(process.argv[1]);db.prepare('insert or ignore into progress (challenge_id,points,solved_at) values (?,?,?)').run('ghost',99,new Date().toISOString());db.close();" "$DB"
-check_has "orphan: still 3 / 3" "Points: 3 / 3" "$(curl -s "$BASE/")"
+check_has "orphan: still 3 / 3" "Points: 3 / 3" "$(curl -s -b "$JAR" "$BASE/")"
 check_eq "orphan: page status 200" "200" \
-    "$(curl -s -o /dev/null -w '%{http_code}' "$BASE/")"
+    "$(curl -s -b "$JAR" -o /dev/null -w '%{http_code}' "$BASE/")"
 
 echo "== persistence across restart =="
 stop_server
 start_server || exit 1
-RESTARTED=$(curl -s "$BASE/api/progress")
-check_has "restart: hello row survives" '"challenge_id":"hello-fix"' "$RESTARTED"
+RESTARTED=$(curl -s -b "$JAR" "$BASE/api/progress")
+check_has "restart: session survives" '"challenge_id":"hello-fix"' "$RESTARTED"
 check_has "restart: sum row survives" '"challenge_id":"sum-fix"' "$RESTARTED"
+
+echo "== logout =="
+check_eq "logout redirects" "302" \
+    "$(curl -s -b "$JAR" -c "$JAR" -o /dev/null -w '%{http_code}' -X POST "$BASE/logout")"
+check_eq "/ protected after logout" "302" \
+    "$(curl -s -b "$JAR" -o /dev/null -w '%{http_code}' "$BASE/")"
+
+echo "== throttle =="
+stop_server
+start_server || exit 1
+i=0
+while [ "$i" -lt 5 ]; do
+    curl -s -o /dev/null -X POST -d 'password=nope' "$BASE/login"
+    i=$((i + 1))
+done
+check_has "6th attempt throttled" "Too many attempts" \
+    "$(curl -s -X POST -d 'password=nope' "$BASE/login")"
 
 echo
 echo "passed: $PASS, failed: $FAIL"
