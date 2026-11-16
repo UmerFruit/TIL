@@ -136,6 +136,13 @@ export function createApp(opts: {
         return c.html(<Sandbox result={result} challengeId="" />);
     });
 
+    app.post("/sandbox/reset", async (c) => {
+        const body = await c.req.parseBody();
+        const challengeId = typeof body.challenge === "string" ? body.challenge : "";
+        const result = await opts.sandbox.reset(challengeId);
+        return c.html(<Sandbox result={result} challengeId={challengeId} />);
+    });
+
     app.get("/sandbox/status", async (c) => {
         const challengeId = c.req.query("challenge") ?? "";
         const result = await opts.sandbox.status(challengeId);

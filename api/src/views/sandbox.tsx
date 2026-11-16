@@ -23,6 +23,15 @@ function SandboxControls({ status, challengeId }: { status: SandboxStatus; chall
                 <form hx-post="/sandbox/stop" hx-target="#sandbox" hx-swap="innerHTML">
                     <button type="submit">Stop</button>
                 </form>
+                <form
+                    hx-post="/sandbox/reset"
+                    hx-target="#sandbox"
+                    hx-swap="innerHTML"
+                    hx-confirm="Discard your changes?"
+                >
+                    <input type="hidden" name="challenge" value={challengeId} />
+                    <button type="submit">Reset</button>
+                </form>
             </div>
         );
     }

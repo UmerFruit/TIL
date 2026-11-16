@@ -1,0 +1,49 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: api
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "26"
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+      - name: Build
+        run: npm run build
+      - name: Sandbox service tests (fake runtime)
+        run: npm run test:sandbox
+      - name: HTTP verification
+        run: npm run verify
+
+  sandbox-docker:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: build-and-test
+    defaults:
+      run:
+        working-directory: api
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "26"
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+      - name: Build sandbox image
+        run: sh ../sandbox-images/build.sh
+      - name: Docker integration test
+        run: npm run test:sandbox:docker

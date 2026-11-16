@@ -33,7 +33,10 @@ const sandboxRuntime = new DockerSandboxRuntime({
     cpus: config.sandboxCpus,
     pids: config.sandboxPids,
 });
-const sandbox = new SandboxService(content, sandboxRuntime);
+const sandbox = new SandboxService(content, sandboxRuntime, config.sandboxIdleMinutes, config.sandboxJanitorSeconds);
+
+// Startup cleanup: remove leftover containers labeled til.session=1
+await sandbox.cleanupLeftovers();
 
 const app = createApp({ db, service, flags, auth, sandbox, config });
 
