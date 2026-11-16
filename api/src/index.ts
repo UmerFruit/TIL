@@ -2,7 +2,9 @@ import { serve } from "@hono/node-server";
 import { createApp } from "./routes/index.js";
 import { openDb } from "./db.js";
 import { DiskContentAdapter } from "./adapters/content.js";
+import { SqliteProgressAdapter } from "./adapters/progress.js";
 import { ChallengesService } from "./services/challenges.js";
+import { FlagsService } from "./services/flags.js";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -10,8 +12,10 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const db = openDb();
 const content = new DiskContentAdapter(process.env.CONTENT_DIR || resolve(root, "content"));
 const service = new ChallengesService(content);
+const progress = new SqliteProgressAdapter(db);
+const flags = new FlagsService(content, progress);
 
-const app = createApp({ db, service });
+const app = createApp({ db, service, flags });
 
 const port = Number(process.env.PORT) || 3000;
 serve({ fetch: app.fetch, port }, (info) => {

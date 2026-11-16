@@ -51,6 +51,22 @@ export function ChallengePage({
                     </ul>
                 </>
             )}
+            <form
+                hx-post={`/challenges/${challenge.id}/flag`}
+                hx-target="#flag-result"
+                hx-swap="innerHTML"
+            >
+                <input
+                    type="text"
+                    name="flag"
+                    placeholder="TIL{...}"
+                    autocomplete="off"
+                    required
+                    maxlength={200}
+                />
+                <button type="submit">Submit flag</button>
+            </form>
+            <div id="flag-result"></div>
         </>
     );
 }
