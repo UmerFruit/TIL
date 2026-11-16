@@ -4,6 +4,7 @@ import type {
     FoundChallenge,
     ModuleResult,
 } from "../adapters/content.js";
+
 export type { BrokenItem };
 
 export interface ListChallenge {
@@ -51,7 +52,7 @@ export class ChallengesService {
     list(): ListResult {
         const modules: ListModule[] = [];
         const broken: BrokenItem[] = [];
-        const seenIds = new Set<string>();
+        const duplicateIds = this.duplicateIds();
 
         for (const result of this.content.readModules()) {
             if ("broken" in result) {
@@ -65,7 +66,7 @@ export class ChallengesService {
                     broken.push(cr);
                     continue;
                 }
-                if (seenIds.has(cr.id)) {
+                if (duplicateIds.has(cr.id)) {
                     broken.push({
                         broken: true,
                         path: `challenge ${cr.id}`,
@@ -73,7 +74,6 @@ export class ChallengesService {
                     });
                     continue;
                 }
-                seenIds.add(cr.id);
                 challenges.push({
                     id: cr.id,
                     title: cr.title,
@@ -96,6 +96,17 @@ export class ChallengesService {
     }
 
     getChallenge(id: string): ChallengeOutcome {
+        if (this.duplicateIds().has(id)) {
+            return {
+                kind: "broken",
+                broken: {
+                    broken: true,
+                    path: `challenge ${id}`,
+                    error: `duplicate id: "${id}"`,
+                },
+            };
+        }
+
         const found = this.content.findChallenge(id);
         if (found === null) {
             return { kind: "notFound" };
@@ -127,13 +138,27 @@ export class ChallengesService {
             },
         };
     }
+
+    // Challenge ids that appear in more than one module. Both list() and
+    // getChallenge() use this so they agree on what is broken.
+    private duplicateIds(): Set<string> {
+        const seen = new Map<string, number>();
+        for (const result of this.content.readModules()) {
+            if ("broken" in result) continue;
+            for (const cr of this.content.readChallenges(result.id)) {
+                if ("broken" in cr) continue;
+                seen.set(cr.id, (seen.get(cr.id) ?? 0) + 1);
+            }
+        }
+        return new Set([...seen.entries()].filter(([, c]) => c > 1).map(([id]) => id));
+    }
 }
 
 const GUIDE_MARKER = "## Guide";
 
 function splitBriefing(body: string): string {
     const lines = body.split("\n");
-    const guideIndex = lines.findIndex((line) => line === GUIDE_MARKER);
+    const guideIndex = lines.findIndex((line) => line.trimEnd() === GUIDE_MARKER);
     if (guideIndex === -1) {
         return body.trimEnd();
     }

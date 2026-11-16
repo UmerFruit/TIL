@@ -57,7 +57,7 @@ const LinkSchema = z.object({
         .url()
         .refine(
             (u) => u.startsWith("http://") || u.startsWith("https://"),
-            { message: "url: must be http: or https:" }
+            { message: "must be http: or https:" }
         ),
     label: z.string(),
 });
@@ -91,7 +91,7 @@ function formatZodError(err: unknown): string {
 }
 
 function readChallengeFile(filePath: string): { data: unknown; body: string } {
-    const content = readFileSync(filePath, "utf8");
+    const content = readFileSync(filePath, "utf8").replace(/\r\n/g, "\n").replace(/\r/g, "\n");
     const lines = content.split("\n");
     if (lines[0]?.trim() !== "---") {
         throw new Error("missing opening --- fence");
@@ -115,6 +115,31 @@ function isFile(path: string): boolean {
 
 function folderName(path: string): string {
     return path.split(/\/|\\/).pop() ?? "";
+}
+
+// Single validation used by both readChallenges and findChallenge so they agree
+// on what is broken (id matches folder, module matches parent folder).
+function validateChallenge(
+    challenge: Challenge,
+    path: string,
+    folder: string,
+    parentFolder: string
+): BrokenItem | null {
+    if (challenge.id !== folder) {
+        return {
+            broken: true,
+            path,
+            error: `id: challenge id "${challenge.id}" does not match folder name "${folder}"`,
+        };
+    }
+    if (challenge.module !== parentFolder) {
+        return {
+            broken: true,
+            path,
+            error: `module: challenge module "${challenge.module}" does not match parent folder "${parentFolder}"`,
+        };
+    }
+    return null;
 }
 
 export class DiskContentAdapter implements ContentAdapter {
@@ -171,20 +196,9 @@ export class DiskContentAdapter implements ContentAdapter {
             try {
                 const { data } = readChallengeFile(challengePath);
                 const challenge = ChallengeSchema.parse(data);
-                if (challenge.id !== entry.name) {
-                    results.push({
-                        broken: true,
-                        path: challengePath,
-                        error: `id: challenge id "${challenge.id}" does not match folder name "${entry.name}"`,
-                    });
-                    continue;
-                }
-                if (challenge.module !== expectedModule) {
-                    results.push({
-                        broken: true,
-                        path: challengePath,
-                        error: `module: challenge module "${challenge.module}" does not match parent folder "${expectedModule}"`,
-                    });
+                const validation = validateChallenge(challenge, challengePath, entry.name, expectedModule);
+                if (validation) {
+                    results.push(validation);
                     continue;
                 }
                 results.push(challenge);
@@ -230,7 +244,12 @@ export class DiskContentAdapter implements ContentAdapter {
                 }
                 try {
                     const { data, body } = readChallengeFile(challengePath);
-                    return { challenge: ChallengeSchema.parse(data), body };
+                    const challenge = ChallengeSchema.parse(data);
+                    const validation = validateChallenge(challenge, challengePath, challengeEntry.name, entry.name);
+                    if (validation) {
+                        return validation;
+                    }
+                    return { challenge, body };
                 } catch (err) {
                     return {
                         broken: true,

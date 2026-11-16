@@ -13,7 +13,7 @@ const publicDir = resolve(dirname(fileURLToPath(import.meta.url)), "../../public
 export function createApp(opts: { db: Database.Database; service: ChallengesService }) {
     const app = new Hono();
 
-    app.use("/static/*", serveStatic({ root: publicDir }));
+    app.use("/static/*", serveStatic({ root: publicDir, rewriteRequestPath: (path) => path.replace(/^\/static/, "") }));
 
     app.get("/api/progress", (c) => {
         return c.json(opts.db.prepare("select * from progress").all());
