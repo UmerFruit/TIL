@@ -154,9 +154,15 @@ tier,
 }
 
 /* ===== Two-column challenge page layout ===== */
+/* <main> caps width at 800px; the two-column page needs the full viewport */
+main:has(> .challenge-page) {
+    max-width: none;
+    padding: 0;
+}
+
 .challenge-page {
     display: grid;
-    grid-template-columns: 1fr 700px;
+    grid-template-columns: minmax(0, 1fr) minmax(400px, 700px);
     gap: 2rem;
     max-width: none;
     padding: 1.5rem;

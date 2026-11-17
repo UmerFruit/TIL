@@ -140,7 +140,10 @@ export class DockerSandboxRuntime implements SandboxRuntime {
                 WorkingDir: "/workspace",
                 Env: opts.env ?? ["TERM=xterm-256color"],
             });
-            const stream = await exec.start({ hijack: true, stdin: true });
+            // Tty must be repeated on start: without it the daemon sends a
+            // multiplexed stream (8-byte frame headers) even for a TTY exec, and
+            // those header bytes show up as stray characters in the terminal.
+            const stream = await exec.start({ hijack: true, stdin: true, Tty: true });
             // dockerode returns a Duplex stream (Readable + Writable)
             const duplex = stream as NodeJS.ReadableStream & NodeJS.WritableStream & { destroy?: (error?: Error) => void };
             return {

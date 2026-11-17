@@ -117,8 +117,20 @@ export function createApp(opts: {
     app.post("/challenges/:id/flag", async (c) => {
         const body = await c.req.parseBody();
         const submitted = typeof body.flag === "string" ? body.flag : "";
-        const result = opts.flags.submit(c.req.param("id"), submitted);
+        const challengeId = c.req.param("id");
+        const result = opts.flags.submit(challengeId, submitted);
         // Always 200: htmx does not swap 4xx responses.
+        if (result.kind === "correct" || result.kind === "alreadySolved") {
+            // Right flag: the sandbox is no longer needed, so shut it down and
+            // refresh the sandbox controls (out-of-band) to show "stopped".
+            const stopped = await opts.sandbox.stop();
+            return c.html(
+                <>
+                    <FlagResult result={result} />
+                    <Sandbox result={stopped} challengeId={challengeId} />
+                </>
+            );
+        }
         return c.html(<FlagResult result={result} />);
     });
 

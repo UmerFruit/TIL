@@ -17,7 +17,7 @@
         const term = new Terminal({
             cursorBlink: true,
             fontSize: 14,
-            fontFamily: '"JetBrains Mono", "Fira Code", "Monospace"',
+            fontFamily: '"JetBrains Mono", "Fira Code", "Cascadia Mono", Consolas, Menlo, "DejaVu Sans Mono", "Liberation Mono", monospace',
             theme: {
                 background: "#1e1e1e",
                 foreground: "#d4d4d4",
@@ -26,6 +26,22 @@
             },
             convertEol: true,
             scrollback: 1000,
+        });
+
+        // Copy support: Ctrl+C copies when text is selected (otherwise it is
+        // SIGINT as usual); Ctrl+Shift+C always copies (and keeps Firefox from
+        // opening the inspector). Paste works natively via Ctrl+Shift+V / Ctrl+V.
+        term.attachCustomKeyEventHandler((e) => {
+            if (e.type !== "keydown") return true;
+            const isC = e.key === "c" || e.key === "C";
+            if (e.ctrlKey && isC && (e.shiftKey || term.hasSelection())) {
+                e.preventDefault();
+                if (term.hasSelection()) {
+                    navigator.clipboard?.writeText(term.getSelection()).catch(() => {});
+                }
+                return false;
+            }
+            return true;
         });
 
         // Load fit addon
@@ -41,7 +57,7 @@
         // Handle resize
         let resizeObserver = new ResizeObserver(() => {
             fitAddon.fit();
-            const dims = term._core._renderService.dimensions;
+            const dims = { cols: term.cols, rows: term.rows };
             if (dims && ws && ws.readyState === WebSocket.OPEN) {
                 ws.send(JSON.stringify({ type: "resize", cols: dims.cols, rows: dims.rows }));
             }
@@ -51,7 +67,7 @@
         // Also handle window resize
         window.addEventListener("resize", () => {
             fitAddon.fit();
-            const dims = term._core._renderService.dimensions;
+            const dims = { cols: term.cols, rows: term.rows };
             if (dims && ws && ws.readyState === WebSocket.OPEN) {
                 ws.send(JSON.stringify({ type: "resize", cols: dims.cols, rows: dims.rows }));
             }
@@ -66,7 +82,7 @@
 
         ws.onopen = () => {
             // Send initial resize
-            const dims = term._core._renderService.dimensions;
+            const dims = { cols: term.cols, rows: term.rows };
             if (dims) {
                 ws.send(JSON.stringify({ type: "resize", cols: dims.cols, rows: dims.rows }));
             }
@@ -133,7 +149,7 @@
 
         function resizeHandler() {
             fitAddon.fit();
-            const dims = term._core._renderService.dimensions;
+            const dims = { cols: term.cols, rows: term.rows };
             if (dims && ws.readyState === WebSocket.OPEN) {
                 ws.send(JSON.stringify({ type: "resize", cols: dims.cols, rows: dims.rows }));
             }
@@ -146,7 +162,9 @@
     }
 
     // Initialize all terminals on htmx:load (works after swaps)
-    document.body.addEventListener("htmx:load", () => {
+    // (listen on document: htmx:load bubbles, and document exists even when
+    // this script runs in <head> before <body> is parsed)
+    document.addEventListener("htmx:load", () => {
         document.querySelectorAll(`[${TERMINAL_ATTR}]`).forEach(createTerminal);
     });
 
