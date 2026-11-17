@@ -12,6 +12,10 @@ services:
         DOCKER_GID: ${DOCKER_GID:-999}
     env_file:
       - .env
+    environment:
+      # .env's CONTENT_DIR is the HOST path (used for the volume below);
+      # inside the container the content is always mounted at /app/content.
+      CONTENT_DIR: /app/content
     volumes:
       # Content checkout (read-only, managed externally via git pull)
       - ${CONTENT_DIR:-./content}:/app/content:ro
@@ -20,7 +24,7 @@ services:
       # Docker socket for sandbox container management
       - /var/run/docker.sock:/var/run/docker.sock
     networks:
-      - caddy
+      - proxy
     # No published ports - Caddy reverse proxies via the caddy network
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://localhost:3000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
@@ -33,7 +37,7 @@ services:
     # The user is in the docker group (GID from DOCKER_GID) to access the socket
 
 networks:
-  caddy:
+  proxy:
     external: true
 
 volumes:

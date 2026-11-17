@@ -19,12 +19,13 @@ COPY api/package*.json ./api/
 COPY api/tsconfig.json ./api/
 
 # Install all dependencies (including devDependencies for build)
-RUN cd api && npm ci
+RUN cd api && npm install
 
 # Copy source code
 COPY api/src ./api/src
 COPY api/public ./api/public
 COPY database ./database
+COPY content ./content
 
 # Build TypeScript, then drop devDependencies (keeps compiled better-sqlite3)
 RUN cd api && npm run build && npm prune --omit=dev
@@ -50,6 +51,7 @@ COPY --from=builder /app/api/package*.json ./api/
 COPY --from=builder /app/api/dist ./api/dist
 COPY --from=builder /app/api/public ./api/public
 COPY --from=builder /app/database ./database
+COPY --from=builder /app/content ./content
 
 # Create data directory for SQLite (will be mounted as volume)
 RUN mkdir -p /app/data && chown -R node:node /app/data
